@@ -12,4 +12,6 @@ add_executable(bmss main.cpp
         include/graphs_impl/Directedgraph.cpp
         include/graphs_impl/node.cpp
         include/graphs_impl/edge.cpp
+        src/algorithms/dijkstra/dijkstra.cpp
+        src/algorithms/dijkstra/dijkstra.h
 )
