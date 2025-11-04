@@ -24,6 +24,14 @@ public:
     std::vector<std::shared_ptr<IEdge>> edges() const;
     std::string toString() const;
 
+private:
+    int V_;
+    int E_;
+    bool directed_;
+    std::vector<std::vector<std::shared_ptr<IEdge>>> adj_;
+    std::vector<int> indegree_;
+
+    void validateVertex(int v) const;
 };
 
 

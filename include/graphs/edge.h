@@ -11,5 +11,9 @@ public:
     int to() const;
     std::string toString() const;
 
+private:
+    int v_;
+    int w_;
+    double weight_;
 };
 #endif //EDGE_H

@@ -5,7 +5,6 @@ set(CMAKE_CXX_STANDARD 20)
 
 include_directories(include)
 
-#TODO: add sources and then include inside add_executable
 add_executable(bmss main.cpp
         include/graphs/Directedgraph.h
         include/graphs/edge.h

@@ -3,55 +3,52 @@
 #include <fstream>
 #include <sstream>
 
-class Directedgraph : IDirectedgraph {
-public:
-    Directedgraph(int V, bool directed) : IDirectedgraph(V, directed) {
-        if (V < 0) {
-            throw std::invalid_argument("Number of vertices must be greater than 0");
-        }
-
-        adj_.resize(V);
-        indegree_.resize(V, 0);
+IDirectedgraph::IDirectedgraph(int V, bool directed) : V_(V), E_(0), directed_(directed) {
+    if (V < 0) {
+        throw std::invalid_argument("Number of vertices must be greater than 0");
     }
+    adj_.resize(V);
+    indegree_.resize(V, 0);
+}
 
-    int V() const {
-        return V_;
-    }
+int IDirectedgraph::V() const {
+    return V_;
+}
 
-    int E() const {
-        return E_;
-    }
+int IDirectedgraph::E() const {
+    return E_;
+}
 
-    bool isDirected() const {
-        return directed_;
-    }
+bool IDirectedgraph::isDirected() const {
+    return directed_;
+}
 
-    void addEdge(const std::shared_ptr<IEdge>& e) {
-        int v = e->from();
-        int w = e->to();
-        validateVertex(v);
-        validateVertex(w);
-        adj_[v].push_back(e);
-        indegree_[w]++;
-        E_++;
-    }
+void IDirectedgraph::addEdge(const std::shared_ptr<IEdge>& e) {
+    int v = e->from();
+    int w = e->to();
+    validateVertex(v);
+    validateVertex(w);
+    adj_[v].push_back(e);
+    indegree_[w]++;
+    E_++;
+}
 
-    std::vector<std::shared_ptr<IEdge>> adj(int v) const {
+std::vector<std::shared_ptr<IEdge>> IDirectedgraph::adj(int v) const {
         validateVertex(v);
         return adj_[v];
     }
 
-    int outdegree(int v) const {
-        validateVertex(v);
-        return static_cast<int>(adj_[v].size());
-    }
+int IDirectedgraph::outdegree(int v) const {
+    validateVertex(v);
+    return static_cast<int>(adj_[v].size());
+}
 
-    int indegree(int v) const {
-        validateVertex(v);
-        return indegree_[v];
-    }
+int IDirectedgraph::indegree(int v) const {
+    validateVertex(v);
+    return indegree_[v];
+}
 
-    std::vector<std::shared_ptr<IEdge>> edges() const {
+std::vector<std::shared_ptr<IEdge>> IDirectedgraph::edges() const {
         std::vector<std::shared_ptr<IEdge>> list;
         list.reserve(E_);
 
@@ -64,7 +61,7 @@ public:
         return list;
     }
 
-    static std::shared_ptr<IDirectedgraph> loadFromFile(const std::string& filename, bool directed = true) {
+static std::shared_ptr<IDirectedgraph> loadFromFile(const std::string& filename, bool directed = true) {
         std::ifstream file(filename);
         if (!file.is_open()) {
             throw std::runtime_error("Could not open file: " + filename);
@@ -124,7 +121,7 @@ public:
         return graph;
     }
 
-    std::string toString() const {
+std::string IDirectedgraph::toString() const {
         std::ostringstream oss;
         oss << V_ << " vertices, " << E_ << " edges\n";
 
@@ -139,19 +136,13 @@ public:
         return oss.str();
     }
 
-private:
-    int V_;
-    int E_;
-    bool directed_;
-    std::vector<std::vector<std::shared_ptr<IEdge>>> adj_;
-    std::vector<int> indegree_;
-
-    void validateVertex(int v) const {
-        if (v < 0 || v >= V_) {
-            throw std::out_of_range(
-                "vertex " + std::to_string(v) +
-                " is should be between 0 and " + std::to_string(V_ - 1)
-            );
-        }
+void IDirectedgraph::validateVertex(int v) const {
+    if (v < 0 || v >= V_) {
+        throw std::out_of_range(
+            "vertex " + std::to_string(v) +
+            " is should be between 0 and " + std::to_string(V_ - 1)
+        );
     }
-};
+}
+
+
