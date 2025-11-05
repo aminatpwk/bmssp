@@ -25,7 +25,7 @@ dijkstra::dijkstra(const std::shared_ptr<IDirectedgraph>& G, int s) : G_(G), s_(
             if (newDist < distTo_[v]) {
                 distTo_[v] = newDist;
                 edgeTo_[v] = e;
-                pq.emplace(newDist, v);
+                pq.emplace(newDist, v); //used emplace instead of push for pair in-place construction!
             }
         }
     }
