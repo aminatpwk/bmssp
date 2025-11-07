@@ -14,4 +14,8 @@ add_executable(bmss main.cpp
         include/graphs_impl/edge.cpp
         src/algorithms/dijkstra/dijkstra.cpp
         src/algorithms/dijkstra/dijkstra.h
+        src/algorithms/bmssp/bmssp.cpp
+        src/algorithms/bmssp/bmssp.h
+        "include/block list/AdaptiveDataStructure.cpp"
+        "include/block list/AdaptiveDataStructure.h"
 )

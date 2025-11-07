@@ -61,65 +61,75 @@ std::vector<std::shared_ptr<IEdge>> IDirectedgraph::edges() const {
         return list;
     }
 
-static std::shared_ptr<IDirectedgraph> loadFromFile(const std::string& filename, bool directed = true) {
-        std::ifstream file(filename);
-        if (!file.is_open()) {
-            throw std::runtime_error("Could not open file: " + filename);
+std::shared_ptr<IDirectedgraph> IDirectedgraph::loadFromFile(const std::string& filename, bool directed) {
+    std::ifstream file(filename);
+    if (!file.is_open()) {
+        throw std::runtime_error("Could not open file: " + filename);
+    }
+
+    std::string line;
+    int V = 0, E = 0;
+    while (std::getline(file, line)) {
+        if (line.empty() || line[0] == 'c' || line[0] == '#') {
+            continue;
         }
-
-        std::string line;
-
-        while (std::getline(file, line)) {
-            if (line.empty() || line[0] == 'c' || line[0] == '#') {
-                continue;
-            }
-            break;
-        }
-
         std::istringstream iss(line);
         std::string token;
         iss >> token;
-
-        int V, E;
-
         if (token == "p") {
             std::string sp;
-            iss >> sp >> V >> E;
+            if (!(iss >> sp >> V >> E)) {
+                 throw std::runtime_error("Invalid 'p' line format.");
+            }
+            break;
         } else {
-            V = std::stoi(token);
-            iss >> E;
-        }
+            int val = 0;
+            try { val = std::stoi(token); } catch (...) { continue; }
 
-        auto graph = std::make_shared<IDirectedgraph>(V, directed);
-
-        int edgesRead = 0;
-        while (std::getline(file, line) && edgesRead < E) {
-            if (line.empty() || line[0] == 'c' || line[0] == '#') {
-                continue;
+            if (V == 0) {
+                V = val;
+                iss >> E;
+            } else if (E == 0) {
+                E = val;
             }
-
-            std::istringstream edgeStream(line);
-            std::string edgeType;
-            edgeStream >> edgeType;
-
-            int v, w;
-            double weight;
-
-            if (edgeType == "a") {
-                edgeStream >> v >> w >> weight;
-                v--; w--;
-            } else {
-                v = std::stoi(edgeType);
-                edgeStream >> w >> weight;
-            }
-
-            graph->addEdge(std::make_shared<IEdge>(v, w, weight));
-            edgesRead++;
         }
-
-        file.close();
-        return graph;
+        if (V > 0 && E > 0) {
+            break;
+        }
     }
+
+    if (V <= 0 || E <= 0) {
+        throw std::runtime_error("Invalid or missing V and E counts in file.");
+    }
+    auto graph = std::make_shared<IDirectedgraph>(V, directed);
+    int edgesRead = 0;
+    while (std::getline(file, line) && edgesRead < E) {
+        if (line.empty() || line[0] == 'c' || line[0] == '#') {
+            continue;
+        }
+
+        std::istringstream edgeStream(line);
+        std::string edgeType;
+        edgeStream >> edgeType;
+
+        int v, w;
+        double weight;
+
+        if (edgeType == "a") {
+            edgeStream >> v >> w >> weight;
+            v--; w--;
+        } else {
+            v = std::stoi(edgeType);
+            edgeStream >> w >> weight;
+        }
+
+        graph->addEdge(std::make_shared<IEdge>(v, w, weight));
+        edgesRead++;
+    }
+
+    file.close();
+    return graph;
+}
 
 std::string IDirectedgraph::toString() const {
         std::ostringstream oss;

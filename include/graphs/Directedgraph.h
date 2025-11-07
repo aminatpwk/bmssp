@@ -1,7 +1,3 @@
-//
-// Created by User on 11/4/2025.
-//
-
 #ifndef GRAPH_H
 #define GRAPH_H
 #include <memory>
@@ -13,7 +9,7 @@
 class IDirectedgraph {
 public:
     explicit IDirectedgraph(int V, bool directed = true);
-    static std::shared_ptr<IDirectedgraph> loadFromFile(const std::string& filename, bool directed = true);
+    static std::shared_ptr<IDirectedgraph> loadFromFile(const std::string& filename, bool directed);
     int V() const;
     int E() const;
     bool isDirected() const;
