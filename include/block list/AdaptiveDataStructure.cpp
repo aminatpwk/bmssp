@@ -1,49 +1,35 @@
+#include "AdaptiveDataStructure.h"
 #include <algorithm>
-#include <limits>
 #include <map>
 #include <vector>
 
-const double INF = std::numeric_limits<double>::infinity();
+AdaptiveDataStructure::~AdaptiveDataStructure() {
+    Block* current = D0_head;
+    while (current) {
+        Block* next = current->next;
+        delete current;
+        current = next;
+    }
+    current = D1_head;
+    while (current) {
+        Block* next = current->next;
+        delete current;
+        current = next;
+    }
+}
 
-struct Block {
-    std::pmr::map<int, double> elements;
-    double upperBound;
-    Block* next;
-    Block(double ub = INF) : upperBound(ub), next(nullptr) {}
-};
-
-class AdaptiveDataStructure {
-private:
-    Block* D0_head; //for batch-prepend
-    Block* D1_head; //for inserted
-    int M;
-    double B;
-
-public:
-    AdaptiveDataStructure::AdaptiveDataStructure(int m, double b) : M(m), B(b) {
-        D0_head = nullptr;
+    AdaptiveDataStructure::AdaptiveDataStructure(int m, double b, int nv) : M(m), B(b), D0_head(nullptr) {
         D1_head = new Block(b);
+        bestVal.assign(nv, INF);
     }
 
-    AdaptiveDataStructure::~AdaptiveDataStructure() {
-        Block* curr = D0_head;
-        while (curr) {
-            Block* next = curr->next;
-            delete curr;
-            curr = next;
-        }
-        curr = D1_head;
-        while (curr) {
-            Block* next = curr->next;
-            delete curr;
-            curr = next;
-        }
-    }
 
     void AdaptiveDataStructure::insert(int key, double value) {
         if (value >= B) {
             return;
         }
+        if (value >= bestVal[key]) return;
+        bestVal[key] = value;
 
         Block* current = D1_head;
         Block* previous = nullptr;
@@ -52,38 +38,57 @@ public:
             current = current->next;
         }
 
-        if (current) {
-            auto it = current->elements.find(key);
-            if (it != current->elements.end()) {
-                if (value < it->second) {
-                    current->elements[key] = value;
-                }
+        if (!current) {
+            current = new Block(INF);
+            if (previous) {
+                previous->next = current;
             }else {
-                current->elements[key] = value;
-                if (current->elements.size() > M) {
-                    splitBlock(current, previous);
-                }
+                D1_head = current;
             }
         }
+
+        auto it = current->elements.find(key);
+        if (it != current->elements.end()) {
+            if (value < it->second) {
+                it->second = value;
+            }
+        }else {
+            current->elements[key] = value;
+            if (static_cast<int>(current->elements.size()) > M) {
+                splitBlock(current, previous);
+            }
+        }
+
+        current->upperBound = current->elements.empty() ? INF : current->elements.rbegin()->second;
     }
 
-    void AdaptiveDataStructure::batchprepend(const std::vector<std::pair<int, double>>& L) {
+    void AdaptiveDataStructure::batchPrepend(const std::vector<std::pair<int, double>>& L) {
         if (L.empty()) {
             return;
         }
 
+        std::pmr::vector<std::pair<int,double>> filtered;
+        filtered.reserve(L.size());
+        for (auto&& p : L) {
+            if (p.second < bestVal[p.first]) {
+                bestVal[p.first] = p.second;
+                filtered.emplace_back(p);
+            }
+        }
+        if (filtered.empty()) return;
+        std::sort(filtered.begin(), filtered.end(),
+                  [](auto const& a, auto const& b){ return a.second < b.second; });
+
         Block* newHead = nullptr;
         Block* tail = nullptr;
-        std::vector<std::pair<int, double>> sorted = L;
-        sort(sorted.begin(), sorted.end(), [](const auto& a, const auto& b) {return a.second < b.second;});
 
-        for (size_t i = 0; i < sorted.size(); i++) {
+        for (size_t i = 0; i < filtered.size(); ) {
             Block* b = new Block();
             size_t count = 0;
-            while (i < sorted.size() && count < M/2) {
-                b->elements[sorted[i].first] = sorted[i].second;
-                i++;
-                count++;
+            while (i < filtered.size() && count < static_cast<size_t>(M)) {
+                b->elements[filtered[i].first] = filtered[i].second;
+                ++i;
+                ++count;
             }
             if (!b->elements.empty()) {
                 b->upperBound = b->elements.rbegin()->second;
@@ -104,124 +109,94 @@ public:
     }
 
     std::pair<std::vector<int>, double> AdaptiveDataStructure::pull() {
-        std::vector<std::pair<int, double>> collected;
+        std::vector<int> S_i;
+        double B_i = B;
+        std::pmr::vector<std::pair<int,double>> buf;
+        buf.reserve(M+8);
+        size_t collected = 0;
 
-        //ben collect nga D0
-        Block* current = D0_head;
-        while (current && collected.size() < M) {
-            for (auto& p : current->elements) {
-                collected.push_back(p);
-                if (collected.size() >= M) {
-                    break;
-                }
+        for (Block* b = D0_head; b && collected < static_cast<size_t>(M); b = b->next) {
+            for (auto&& p : b->elements) {
+                buf.emplace_back(p);
+                ++collected;
+                if (collected == static_cast<size_t>(M)) break;
             }
-            current = current->next;
         }
-
-        //collect nga D1
-        current = D1_head;
-        while (current && collected.size() < M) {
-            for (auto& p : current->elements) {
-                collected.push_back(p);
-                if (collected.size() >= M) {
-                    break;
-                }
+        for (Block* b = D1_head; b && collected < static_cast<size_t>(M); b = b->next) {
+            for (auto&& p : b->elements) {
+                buf.emplace_back(p);
+                ++collected;
+                if (collected == static_cast<size_t>(M)) break;
             }
-            current = current->next;
         }
 
-        sort(collected.begin(), collected.end(), [](const auto& a, const auto& b) {return a.second < b.second;});
-        if (collected.size() > M) {
-            collected.resize(M);
-        }
-        std::vector<int> result;
-        for (auto& p : collected) {
-            result.push_back(p.first);
+        size_t total = 0;
+        for (Block* b = D0_head; b; b = b->next) total += b->elements.size();
+        for (Block* b = D1_head; b; b = b->next) total += b->elements.size();
+
+        if (total <= static_cast<size_t>(M)) {
+            for (auto&& p : buf) S_i.push_back(p.first);
+            while (D0_head) { Block* nxt = D0_head->next; delete D0_head; D0_head = nxt; }
+            while (D1_head && D1_head->next) { Block* nxt = D1_head->next; delete D1_head; D1_head = nxt; }
+            if (D1_head) { D1_head->elements.clear(); D1_head->upperBound = B; }
+            B_i = B;
+            return {S_i, B_i};
         }
 
-        for (int key : result) {
-            removeKey(key);
-        }
 
-        double nextMin = B;
-        current = D0_head;
-        while (current) {
-            for (auto& p : current->elements) {
-                nextMin = std::min(nextMin, p.second);
-            }
-            current = current->next;
-        }
-        current = D1_head;
-        while (current) {
-            for (auto& p : current -> elements) {
-                nextMin = std::min(nextMin, p.second);
-            }
-            current = current->next;
-        }
+        std::sort(buf.begin(), buf.end(),
+              [](auto const& a, auto const& b){ return a.second < b.second; });
 
-        return {result, nextMin};
+        size_t take = std::min(buf.size(), static_cast<size_t>(M));
+        for (size_t i = 0; i < take; ++i) S_i.push_back(buf[i].first);
+
+        for (int v : S_i) removeKey(v);
+        double minRem = INF;
+        for (Block* b = D0_head; b; b = b->next)
+            if (!b->elements.empty())
+                minRem = std::min(minRem, b->elements.begin()->second);
+        for (Block* b = D1_head; b; b = b->next)
+            if (!b->elements.empty())
+                minRem = std::min(minRem, b->elements.begin()->second);
+        B_i = (minRem < INF) ? minRem : B;
+
+        return {S_i, B_i};
     }
 
     bool AdaptiveDataStructure::empty() const {
-        if (D0_head) {
-            return false;
-        }
-
-        Block* current = D1_head;
-        while (current) {
-            if (!current->elements.empty()) {
-                return false;
-            }
-            current = current->next;
-        }
+        if (D0_head) return false;
+        for (Block* b = D1_head; b; b = b->next)
+            if (!b->elements.empty()) return false;
         return true;
     }
 
-private:
     void AdaptiveDataStructure::splitBlock(Block* block, Block* prev) {
-        if ((int)block->elements.size() <= M) return;
+        if (static_cast<int>(block->elements.size()) <= M) return;
 
-        std::vector<std::pair<int, double>> elems(
-            block->elements.begin(),
-            block->elements.end()
-        );
+        std::pmr::vector<std::pair<int,double>> elems(block->elements.begin(),
+                                                      block->elements.end());
         std::sort(elems.begin(), elems.end(),
-            [](const auto& a, const auto& b) { return a.second < b.second; }
-        );
+                  [](auto const& a, auto const& b){ return a.second < b.second; });
 
         size_t mid = elems.size() / 2;
 
-        Block* newBlock = new Block();
+        Block* newB = new Block();
         block->elements.clear();
 
-        for (size_t i = 0; i < mid; i++) {
+        for (size_t i = 0; i < mid; ++i)
             block->elements[elems[i].first] = elems[i].second;
-        }
-        for (size_t i = mid; i < elems.size(); i++) {
-            newBlock->elements[elems[i].first] = elems[i].second;
-        }
+        for (size_t i = mid; i < elems.size(); ++i)
+            newB->elements[elems[i].first] = elems[i].second;
 
-        if (!block->elements.empty()) {
-            block->upperBound = block->elements.rbegin()->second;
-        }
-        if (!newBlock->elements.empty()) {
-            newBlock->upperBound = newBlock->elements.rbegin()->second;
-        }
+        block->upperBound = block->elements.empty() ? INF : block->elements.rbegin()->second;
+        newB->upperBound  = newB->elements.empty()  ? INF : newB->elements.rbegin()->second;
 
-        newBlock->next = block->next;
-        block->next = newBlock;
+        newB->next = block->next;
+        block->next = newB;
     }
 
     void AdaptiveDataStructure::removeKey(int key) {
-        Block* curr = D0_head;
-        while (curr) {
-            curr->elements.erase(key);
-            curr = curr->next;
-        }
-        curr = D1_head;
-        while (curr) {
-            curr->elements.erase(key);
-            curr = curr->next;
-        }
+        for (Block* b = D0_head; b; b = b->next) b->elements.erase(key);
+        for (Block* b = D1_head; b; b = b->next) b->elements.erase(key);
     }
-};
+
