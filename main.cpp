@@ -3,68 +3,76 @@
 #include <memory>
 #include <vector>
 #include <algorithm>
-
-// Assuming these headers exist based on your provided structure
+#include <chrono>
 #include "graphs/Directedgraph.h"
-#include "src/algorithms/dijkstra/dijkstra.h"
+#include "src/algorithms/bmssp/bmssp.h"
 
 using namespace std;
 
-// Helper function to print the shortest path and distance
-void print_shortest_path(int source_vertex, int destination_vertex, const dijkstra& solver) {
-    // Check if the vertex is reachable (distTo is not INF)
-    if (!solver.hasPathTo(destination_vertex)) {
+void print_shortest_path(int source_vertex, int destination_vertex,
+                         const vector<int>& pred, const vector<double>& dist) {
+    const double INF = std::numeric_limits<double>::infinity();
+
+    if (dist[destination_vertex] == INF) {
         cout << "Unreachable (Distance = INF)";
         return;
     }
 
-    double distance = solver.distTo(destination_vertex); // Get shortest distance
-    cout << "Distance = " << distance << ", Path: ";
+    cout << "Distance = " << dist[destination_vertex] << ", Path: ";
 
-    if (source_vertex == destination_vertex) {
-        cout << source_vertex;
-        return;
+    vector<int> path;
+    for (int v = destination_vertex; v != -1; v = pred[v]) {
+        path.push_back(v);
     }
+    reverse(path.begin(), path.end());
 
-    // Get the path as a vector of edges
-    vector<shared_ptr<IEdge>> path = solver.pathTo(destination_vertex);
-
-    // Print the vertices in the path
-    if (!path.empty()) {
-        cout << path[0]->from(); // Start at the source vertex
-        for (const auto& e : path) {
-            cout << " -> " << e->to(); // Print the destination of each edge
-        }
+    for (size_t i = 0; i < path.size(); ++i) {
+        cout << path[i];
+        if (i + 1 < path.size()) cout << " -> ";
     }
 }
 
 int main() {
-    // --- HARDCODED INPUTS ---
-    const std::string filename = "../dense.txt";
-    const int source_vertex = 0; // Testing starts from vertex 0
-    // ------------------------
+    const std::string filename = "../sparse.txt";
+    const int source_vertex = 0;
 
     try {
-        // 1. Load the graph using the static loadFromFile method
         cout << "Loading graph from file: " << filename << "..." << endl;
         auto G = IDirectedgraph::loadFromFile(filename, true);
 
         cout << "Graph loaded successfully. " << G->V() << " vertices, " << G->E() << " edges." << endl;
 
-        // 2. Validate and Run Dijkstra's algorithm
         if (source_vertex < 0 || source_vertex >= G->V()) {
-            cerr << "Error: Hardcoded source vertex " << source_vertex << " is out of bounds [0, " << G->V() - 1 << "]." << endl;
+            cerr << "Error: Source vertex out of bounds." << endl;
             return 1;
         }
 
-        cout << "Running Dijkstra's algorithm starting from vertex " << source_vertex << "..." << endl;
-        dijkstra shortest_path_solver(G, source_vertex);
+        cout << "\nRunning BMSSP algorithm starting from vertex " << source_vertex << "..." << endl;
+        auto start_bmssp = chrono::high_resolution_clock::now();
+        bmssp bmssp(*G);
+        bmssp.solve(source_vertex);
+        auto end_bmssp = chrono::high_resolution_clock::now();
+        auto bmssp_duration = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(end_bmssp - start_bmssp);
 
-        // 3. Print results for all vertices
+        cout << "BMSSP completed in " << bmssp_duration.count() << " ms" << endl;
+        auto dist = bmssp.getDistances();
+        auto pred = bmssp.getPredecessors();
+
+        int reachable = 0;
+        int at_zero = 0;
+        int at_inf = 0;
+        const double INF = std::numeric_limits<double>::infinity();
+
+        for (int v = 0; v < G->V(); v++) {
+            if (dist[v] < INF) reachable++;
+            if (dist[v] == 0) at_zero++;
+            if (dist[v] == INF) at_inf++;
+        }
+
         cout << "\n--- Shortest Paths from Source Vertex " << source_vertex << " ---" << endl;
         for (int v = 0; v < G->V(); v++) {
             cout << "Vertex " << v << ": ";
-            print_shortest_path(source_vertex, v, shortest_path_solver);
+            print_shortest_path(source_vertex, v, pred, dist);
             cout << endl;
         }
 
