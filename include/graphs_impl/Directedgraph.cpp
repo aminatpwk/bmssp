@@ -1,7 +1,9 @@
 #include "graphs/Directedgraph.h"
 
 #include <fstream>
+#include <iostream>
 #include <sstream>
+#include <unordered_map>
 
 IDirectedgraph::IDirectedgraph(int V, bool directed) : V_(V), E_(0), directed_(directed) {
     if (V < 0) {
@@ -68,66 +70,65 @@ std::shared_ptr<IDirectedgraph> IDirectedgraph::loadFromFile(const std::string& 
     }
 
     std::string line;
-    int V = 0, E = 0;
+
+    // Skip comments and find header
     while (std::getline(file, line)) {
-        if (line.empty() || line[0] == 'c' || line[0] == '#') {
+        if (line.empty() || line[0] == '#')
             continue;
-        }
+        if (line.find("source") != std::string::npos)
+            break; // header line found
+    }
+
+    // Temporary storage for edges
+    std::vector<std::tuple<long long, long long, double>> edges;
+    edges.reserve(100000); // reserve some space
+
+    // Read edges
+    while (std::getline(file, line)) {
+        if (line.empty() || line[0] == '#')
+            continue;
+
         std::istringstream iss(line);
-        std::string token;
-        iss >> token;
-        if (token == "p") {
-            std::string sp;
-            if (!(iss >> sp >> V >> E)) {
-                 throw std::runtime_error("Invalid 'p' line format.");
-            }
-            break;
-        } else {
-            int val = 0;
-            try { val = std::stoi(token); } catch (...) { continue; }
+        std::string srcStr, dstStr, weightStr;
 
-            if (V == 0) {
-                V = val;
-                iss >> E;
-            } else if (E == 0) {
-                E = val;
-            }
-        }
-        if (V > 0 && E > 0) {
-            break;
-        }
-    }
+        if (!std::getline(iss, srcStr, ',')) continue;
+        if (!std::getline(iss, dstStr, ',')) continue;
+        if (!std::getline(iss, weightStr, ',')) continue;
 
-    if (V <= 0 || E <= 0) {
-        throw std::runtime_error("Invalid or missing V and E counts in file.");
-    }
-    auto graph = std::make_shared<IDirectedgraph>(V, directed);
-    int edgesRead = 0;
-    while (std::getline(file, line) && edgesRead < E) {
-        if (line.empty() || line[0] == 'c' || line[0] == '#') {
-            continue;
-        }
+        long long src = std::stoll(srcStr);
+        long long dst = std::stoll(dstStr);
+        double weight = std::stod(weightStr);
 
-        std::istringstream edgeStream(line);
-        std::string edgeType;
-        edgeStream >> edgeType;
-
-        int v, w;
-        double weight;
-
-        if (edgeType == "a") {
-            edgeStream >> v >> w >> weight;
-            v--; w--;
-        } else {
-            v = std::stoi(edgeType);
-            edgeStream >> w >> weight;
-        }
-
-        graph->addEdge(std::make_shared<IEdge>(v, w, weight));
-        edgesRead++;
+        edges.emplace_back(src, dst, weight);
     }
 
     file.close();
+
+    if (edges.empty()) {
+        throw std::runtime_error("No valid edges found in file: " + filename);
+    }
+
+    // Remap OSM IDs to 0-based indices
+    std::unordered_map<long long, int> nodeMap;
+    int nextId = 0;
+
+    // Count total vertices
+    for (const auto& [src, dst, _] : edges) {
+        if (nodeMap.find(src) == nodeMap.end()) nodeMap[src] = nextId++;
+        if (nodeMap.find(dst) == nodeMap.end()) nodeMap[dst] = nextId++;
+    }
+
+    int V = nextId; // total vertices
+    auto graph = std::make_shared<IDirectedgraph>(V, directed);
+
+    // Add edges with remapped indices
+    for (const auto& [src, dst, weight] : edges) {
+        int u = nodeMap[src];
+        int v = nodeMap[dst];
+        graph->addEdge(std::make_shared<IEdge>(u, v, weight));
+    }
+
+    std::cout << "Graph loaded successfully: " << V << " vertices, " << edges.size() << " edges\n";
     return graph;
 }
 

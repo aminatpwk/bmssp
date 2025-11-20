@@ -33,7 +33,7 @@ void print_shortest_path(int source_vertex, int destination_vertex,
 }
 
 int main() {
-    const std::string filename = "../sparse.txt";
+    const std::string filename = "../tokyo roads.txt";
     const int source_vertex = 0;
 
     try {
@@ -53,7 +53,6 @@ int main() {
         bmssp.solve(source_vertex);
         auto end_bmssp = chrono::high_resolution_clock::now();
         auto bmssp_duration = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(end_bmssp - start_bmssp);
-
         cout << "BMSSP completed in " << bmssp_duration.count() << " ms" << endl;
         auto dist = bmssp.getDistances();
         auto pred = bmssp.getPredecessors();
